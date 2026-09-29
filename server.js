@@ -21,7 +21,7 @@ app.use(express.json());
 // CORS
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://createnotesadi.netlify.app",
     credentials: true,
   })
 );
@@ -32,7 +32,7 @@ app.use(
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "yourSecretKey123",
+    secret: process.env.SESSION_SECRET,
 
     resave: false,
 
@@ -42,9 +42,9 @@ app.use(
       httpOnly: true,
 
       // Required for local HTTP development
-      secure: false,
+      secure: true,
 
-      sameSite: "lax",
+      sameSite: "none",
 
       maxAge: 1000 * 60 * 60 * 24, // 1 day
     },

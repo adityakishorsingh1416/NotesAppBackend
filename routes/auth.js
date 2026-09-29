@@ -170,9 +170,7 @@ router.get("/redirect", (req, res) => {
   if (!req.session.userId) {
     return res.redirect("/login");
   }
-
-  // React frontend
-  res.redirect("http://localhost:5173");
+  res.redirect("https://createnotesadi.netlify.app");
 });
 
 // ===============================
