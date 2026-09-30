@@ -68,28 +68,23 @@
       </button>
     </div>
 
-    <script>
-      function goToNotes() {
-        const token = "<%= token %>";
+  <script>
+  function goToNotes() {
+    const token = "<%= token %>";
 
-        console.log("JWT received:", token);
+    if (!token || token === "undefined") {
+      alert("JWT token was not received.");
+      return;
+    }
 
-        if (!token || token === "undefined") {
-          alert("JWT token was not received from server.");
-          return;
-        }
+    // Send token to Netlify
+    const netlifyURL =
+      "https://createnotesadi.netlify.app/?token=" +
+      encodeURIComponent(token);
 
-        localStorage.setItem("token", token);
-
-        console.log(
-          "JWT saved:",
-          localStorage.getItem("token")
-        );
-
-        window.location.href =
-          "https://createnotesadi.netlify.app/";
-      }
-    </script>
+    window.location.href = netlifyURL;
+  }
+</script>
   </body>
 </html>
 
