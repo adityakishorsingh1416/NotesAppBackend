@@ -1,4 +1,3 @@
-// backend/routes/auth.js
 
 const express = require("express");
 const bcrypt = require("bcryptjs");
@@ -15,7 +14,7 @@ router.get("/", (req, res) => {
 });
 
 // ===============================
-// RENDER LOGIN PAGE
+// LOGIN PAGE
 // ===============================
 
 router.get("/login", (req, res) => {
@@ -25,7 +24,7 @@ router.get("/login", (req, res) => {
 });
 
 // ===============================
-// RENDER REGISTER PAGE
+// REGISTER PAGE
 // ===============================
 
 router.get("/register", (req, res) => {
@@ -42,7 +41,7 @@ router.post("/register", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Basic validation
+    // Validate input
     if (!username || !password) {
       return res.render("register", {
         message: "Username and password are required",
@@ -53,7 +52,7 @@ router.post("/register", async (req, res) => {
     const existingUser = await User.findOne({ username });
 
     if (existingUser) {
-      return res.render("login", {
+      return res.render("register", {
         message: "User already exists",
       });
     }
@@ -69,12 +68,23 @@ router.post("/register", async (req, res) => {
 
     await newUser.save();
 
-    // Store only user ID in session
+    // Store user ID in session
     req.session.userId = newUser._id.toString();
 
-    // Show success page
-    res.render("success", {
-      username: newUser.username,
+    // Explicitly save session
+    req.session.save((error) => {
+      if (error) {
+        console.error("Session save error:", error);
+
+        return res.status(500).render("register", {
+          message: "Registration failed",
+        });
+      }
+
+      // Session successfully saved
+      res.render("success", {
+        username: newUser.username,
+      });
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -93,7 +103,7 @@ router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Basic validation
+    // Validate input
     if (!username || !password) {
       return res.render("login", {
         message: "Username and password are required",
@@ -109,7 +119,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Compare password with hashed password
+    // Compare password
     const match = await bcrypt.compare(password, user.password);
 
     if (!match) {
@@ -118,12 +128,23 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Store only user ID in session
+    // Store user ID in session
     req.session.userId = user._id.toString();
 
-    // Show success page
-    res.render("success", {
-      username: user.username,
+    // Explicitly save session
+    req.session.save((error) => {
+      if (error) {
+        console.error("Session save error:", error);
+
+        return res.status(500).render("login", {
+          message: "Login failed",
+        });
+      }
+
+      // Session successfully saved
+      res.render("success", {
+        username: user.username,
+      });
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -140,17 +161,18 @@ router.post("/login", async (req, res) => {
 
 router.get("/success", async (req, res) => {
   try {
+    // Check session
     if (!req.session.userId) {
       return res.redirect("/login");
     }
 
+    // Find user
     const user = await User.findById(req.session.userId);
 
     if (!user) {
-      req.session.destroy(() => {
+      return req.session.destroy(() => {
         res.redirect("/login");
       });
-      return;
     }
 
     res.render("success", {
@@ -158,18 +180,20 @@ router.get("/success", async (req, res) => {
     });
   } catch (error) {
     console.error("Success page error:", error);
+
     res.redirect("/login");
   }
 });
 
 // ===============================
-// REDIRECT
+// REDIRECT TO REACT APP
 // ===============================
 
 router.get("/redirect", (req, res) => {
   if (!req.session.userId) {
     return res.redirect("/login");
   }
+
   res.redirect("https://createnotesadi.netlify.app");
 });
 
@@ -184,7 +208,11 @@ router.get("/logout", (req, res) => {
       return res.status(500).send("Logout failed");
     }
 
-    res.clearCookie("connect.sid");
+    res.clearCookie("connect.sid", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
 
     res.redirect("/login");
   });
@@ -196,20 +224,35 @@ router.get("/logout", (req, res) => {
 
 router.get("/check", async (req, res) => {
   try {
+    // No session
     if (!req.session.userId) {
       return res.json({
         loggedIn: false,
       });
     }
 
+    // Find logged-in user
     const user = await User.findById(req.session.userId).select("username");
+
     if (!user) {
-      return res.json({ loggedIn: false });
+      return res.json({
+        loggedIn: false,
+      });
     }
-    res.json({ loggedIn: true, username: user.username });
+
+    // User is logged in
+    res.json({
+      loggedIn: true,
+      username: user.username,
+    });
   } catch (error) {
     console.error("Session check error:", error);
-    res.status(500).json({ loggedIn: false, error: "Failed to check session" });
+
+    res.status(500).json({
+      loggedIn: false,
+      error: "Failed to check session",
+    });
   }
 });
+
 module.exports = router;
