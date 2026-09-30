@@ -1,9 +1,26 @@
-
 const express = require("express");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 const router = express.Router();
+
+// ===============================
+// CREATE JWT
+// ===============================
+
+function createToken(user) {
+  return jwt.sign(
+    {
+      userId: user._id.toString(),
+      username: user.username,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1d",
+    }
+  );
+}
 
 // ===============================
 // ROOT
@@ -41,14 +58,12 @@ router.post("/register", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Validate input
     if (!username || !password) {
       return res.render("register", {
         message: "Username and password are required",
       });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ username });
 
     if (existingUser) {
@@ -57,10 +72,8 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const newUser = new User({
       username,
       password: hashedPassword,
@@ -68,23 +81,12 @@ router.post("/register", async (req, res) => {
 
     await newUser.save();
 
-    // Store user ID in session
-    req.session.userId = newUser._id.toString();
+    const token = createToken(newUser);
 
-    // Explicitly save session
-    req.session.save((error) => {
-      if (error) {
-        console.error("Session save error:", error);
-
-        return res.status(500).render("register", {
-          message: "Registration failed",
-        });
-      }
-
-      // Session successfully saved
-      res.render("success", {
-        username: newUser.username,
-      });
+    // Send token to frontend
+    res.render("success", {
+      username: newUser.username,
+      token,
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -103,14 +105,12 @@ router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Validate input
     if (!username || !password) {
       return res.render("login", {
         message: "Username and password are required",
       });
     }
 
-    // Find user
     const user = await User.findOne({ username });
 
     if (!user) {
@@ -119,7 +119,6 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Compare password
     const match = await bcrypt.compare(password, user.password);
 
     if (!match) {
@@ -128,23 +127,11 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Store user ID in session
-    req.session.userId = user._id.toString();
+    const token = createToken(user);
 
-    // Explicitly save session
-    req.session.save((error) => {
-      if (error) {
-        console.error("Session save error:", error);
-
-        return res.status(500).render("login", {
-          message: "Login failed",
-        });
-      }
-
-      // Session successfully saved
-      res.render("success", {
-        username: user.username,
-      });
+    res.render("success", {
+      username: user.username,
+      token,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -156,45 +143,42 @@ router.post("/login", async (req, res) => {
 });
 
 // ===============================
-// SUCCESS PAGE
+// CHECK LOGIN
 // ===============================
 
-router.get("/success", async (req, res) => {
+router.get("/check", async (req, res) => {
   try {
-    // Check session
-    if (!req.session.userId) {
-      return res.redirect("/login");
-    }
+    const authHeader = req.headers.authorization;
 
-    // Find user
-    const user = await User.findById(req.session.userId);
-
-    if (!user) {
-      return req.session.destroy(() => {
-        res.redirect("/login");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.json({
+        loggedIn: false,
       });
     }
 
-    res.render("success", {
+    const token = authHeader.split(" ")[1];
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.userId).select("username");
+
+    if (!user) {
+      return res.json({
+        loggedIn: false,
+      });
+    }
+
+    res.json({
+      loggedIn: true,
       username: user.username,
     });
   } catch (error) {
-    console.error("Success page error:", error);
+    console.error("JWT check error:", error);
 
-    res.redirect("/login");
+    res.json({
+      loggedIn: false,
+    });
   }
-});
-
-// ===============================
-// REDIRECT TO REACT APP
-// ===============================
-
-router.get("/redirect", (req, res) => {
-  if (!req.session.userId) {
-    return res.redirect("/login");
-  }
-
-  res.redirect("https://createnotesadi.netlify.app");
 });
 
 // ===============================
@@ -202,57 +186,11 @@ router.get("/redirect", (req, res) => {
 // ===============================
 
 router.get("/logout", (req, res) => {
-  req.session.destroy((error) => {
-    if (error) {
-      console.error("Logout error:", error);
-      return res.status(500).send("Logout failed");
-    }
+  // JWT is stored on the frontend,
+  // so the frontend will remove it.
 
-    res.clearCookie("connect.sid", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
-
-    res.redirect("/login");
-  });
-});
-
-// ===============================
-// CHECK LOGIN STATUS
-// ===============================
-
-router.get("/check", async (req, res) => {
-  try {
-    // No session
-    if (!req.session.userId) {
-      return res.json({
-        loggedIn: false,
-      });
-    }
-
-    // Find logged-in user
-    const user = await User.findById(req.session.userId).select("username");
-
-    if (!user) {
-      return res.json({
-        loggedIn: false,
-      });
-    }
-
-    // User is logged in
-    res.json({
-      loggedIn: true,
-      username: user.username,
-    });
-  } catch (error) {
-    console.error("Session check error:", error);
-
-    res.status(500).json({
-      loggedIn: false,
-      error: "Failed to check session",
-    });
-  }
+  res.redirect("/login");
 });
 
 module.exports = router;
+
