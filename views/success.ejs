@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -71,11 +72,22 @@
       function goToNotes() {
         const token = "<%= token %>";
 
-        // Store JWT in browser
+        console.log("JWT received:", token);
+
+        if (!token || token === "undefined") {
+          alert("JWT token was not received from server.");
+          return;
+        }
+
         localStorage.setItem("token", token);
 
-        // Open React application
-        window.location.href = "https://createnotesadi.netlify.app";
+        console.log(
+          "JWT saved:",
+          localStorage.getItem("token")
+        );
+
+        window.location.href =
+          "https://createnotesadi.netlify.app/";
       }
     </script>
   </body>
