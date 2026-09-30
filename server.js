@@ -25,33 +25,6 @@ app.use(
   })
 );
 
-// ===============================
-// SESSION
-// ===============================
-
-
-app.set("trust proxy", 1);
-
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-
-    resave: false,
-
-    saveUninitialized: false,
-
-    cookie: {
-      httpOnly: true,
-
-      // Required for local HTTP development
-      secure: true,
-
-      sameSite: "none",
-
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
-    },
-  })
-);
 
 // ===============================
 // EJS
